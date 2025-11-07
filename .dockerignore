@@ -1,0 +1,65 @@
+
+```
+```
+# ============================================================================
+# Docker Ignore File
+# ============================================================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+venv/
+env/
+ENV/
+book_crawler_venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# Tests (optional - remove if you want tests in image)
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Logs and Data (will be mounted as volumes)
+logs/
+data/reports/
+
+# Environment files
+.env
+.env.*
+
+# Database files
+*.dump
+*.bak
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Docker files
+Dockerfile
+docker-compose.yml
+.dockerignore

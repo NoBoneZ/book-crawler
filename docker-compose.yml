@@ -1,0 +1,144 @@
+version: '3.8'
+
+# ============================================================================
+# Docker Compose Configuration for Book Crawler
+# ============================================================================
+
+services:
+  # ==========================================================================
+  # MongoDB Database
+  # ==========================================================================
+  mongodb:
+    image: mongo:6.0
+    container_name: book-crawler-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: changeme123
+      MONGO_INITDB_DATABASE: book_crawler
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - book-crawler-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/book_crawler --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  # ==========================================================================
+  # API Service
+  # ==========================================================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: book-crawler-api
+    restart: unless-stopped
+    command: python run_api.py
+    environment:
+      # MongoDB Configuration
+      MONGODB_URL: mongodb://admin:changeme123@mongodb:27017
+      MONGODB_DB_NAME: book_crawler
+      
+      # API Configuration
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      API_KEY: ${API_KEY:-your-api-key-here}
+      
+      # Crawler Configuration
+      CRAWLER_CONCURRENT_REQUESTS: 10
+      CRAWLER_RETRY_ATTEMPTS: 3
+      CRAWLER_TIMEOUT: 30
+      
+      # Logging
+      LOG_LEVEL: INFO
+      LOG_FILE: logs/app.log
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - book-crawler-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ==========================================================================
+  # Crawler Service (Run on Demand)
+  # ==========================================================================
+  crawler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: book-crawler-crawler
+    command: python run_crawler.py
+    environment:
+      MONGODB_URL: mongodb://admin:changeme123@mongodb:27017
+      MONGODB_DB_NAME: book_crawler
+      CRAWLER_CONCURRENT_REQUESTS: 10
+      LOG_LEVEL: INFO
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - book-crawler-network
+    profiles:
+      - crawler  # Only runs when explicitly specified
+
+  # ==========================================================================
+  # Scheduler Service
+  # ==========================================================================
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: book-crawler-scheduler
+    restart: unless-stopped
+    command: python run_scheduler.py
+    environment:
+      MONGODB_URL: mongodb://admin:changeme123@mongodb:27017
+      MONGODB_DB_NAME: book_crawler
+      SCHEDULER_ENABLED: "true"
+      SCHEDULER_INTERVAL_HOURS: 24
+      LOG_LEVEL: INFO
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - book-crawler-network
+    profiles:
+      - scheduler  # Only runs when explicitly specified
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  book-crawler-network:
+    driver: bridge
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
